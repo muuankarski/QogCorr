@@ -6,12 +6,6 @@ library(gridExtra)
 # Define server logic required to summarize and view the selected dataset
 shinyServer(function(input, output) {
   
-#   load("data/standard.RData")
-#   library(RCurl)
-#   GHurl <- getURL("https://raw.github.com/muuankarski/data/master/world/countriesContinents.csv")
-#   datCont <- read.csv(text = GHurl)
-#   dat <- merge(dat,datCont,by.x="ccode",by.y="cNr")
-#   save(dat, file="data/standardCont.RData")
   load("data/standardCont.RData")
   
   

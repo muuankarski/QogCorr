@@ -92,7 +92,7 @@ shinyServer(function(input, output) {
     #******************************#
     #*** Scatterplot
     
-    datasetInput <- reactive(function() {
+    datasetInput <- reactive({
         #varx <- datPlot$perGini
         vary <- dat[, input$variableY]
         varx <- dat[, input$variableX]
@@ -106,18 +106,38 @@ shinyServer(function(input, output) {
     ## ****** ###
     # Plot
     
-    plotInput <- reactive(function() {
+    plotInput <- reactive({
         
         cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
         datPlot <- datasetInput()
+        # highlight a country in scatterplot
         ## Subset russia data
-#         datRus <- datPlot[datPlot$cntry %in% "Russia",]
-        ## subset the continent
+        if (input$hl_country1 == "none") {
+            highlight_dot <- scale_x_continuous()
+            highlight_name <- scale_y_continuous()
+            }
+        if (input$hl_country1 != "none") {
+            dat_highlight <- datPlot[datPlot$cntry %in% input$hl_country1,]
+            highlight_dot <- geom_point(data=dat_highlight, aes(x=varx, y=vary,group=1),
+                       color="red", size=5)
+            highlight_name <- geom_text(data=dat_highlight, aes(x=varx, y=vary,
+                                           label=cntry,group=1),
+                          size=5, color="red",vjust=1, hjust=-.2)
+        }
+        # log scale
+        if (input$log_scale_scatter == TRUE) {
+            scale_y <- scale_y_log10()
+            scale_x <- scale_x_log10()
+        }
+        if (input$log_scale_scatter == FALSE) {
+            scale_y <- scale_y_continuous()
+            scale_x <- scale_x_continuous()
+        }
+        # subset the continent
         if (input$continent == "All") datPlot <- datPlot
         if (input$continent != "All") datPlot <- datPlot[datPlot$contName == input$continent,]
         
         
-        # subset data for highlighiting Russia
         ggplot(datPlot, aes(x=varx, y=vary, 
                             label=cntry,group=1)) +
             geom_point(data=datPlot, aes(color=contName), size=4) +
@@ -126,11 +146,6 @@ shinyServer(function(input, output) {
             geom_text(size=4, vjust=-0.8, hjust=0.5) +
             labs(x = input$variableX,
                  y = input$variableY) + 
-#             geom_point(data=datRus, aes(x=varx, y=vary,group=1),
-#                        color="red", size=5) +
-#             geom_text(data=datRus, aes(x=varx, y=vary,
-#                                        label=cntry,group=1),
-#                       size=5, color="red",vjust=1, hjust=-.2) +
             theme_minimal() +
             scale_colour_manual(values=cbPalette) +
             theme(legend.title=element_blank()) +
@@ -139,7 +154,11 @@ shinyServer(function(input, output) {
             theme(axis.title = element_text(size=16)) +
             theme(axis.text = element_text(size=16)) +
             guides(color = guide_legend(nrow = 2)) + 
-            labs(title=paste("Year",input$year))
+            labs(title=paste("Year",input$year)) +
+            highlight_dot +
+            highlight_name +
+            scale_y +
+            scale_x
     })
     
     output$correlation <- renderPrint({
@@ -159,14 +178,14 @@ shinyServer(function(input, output) {
         
     })
     
-    output$plot <- reactivePlot(function() {
+    output$plot <- renderPlot({
         print(plotInput())
     })
     
     #******************************#
     #*** Time Scatterplot
     
-    datasetInputT <- reactive(function() {
+    datasetInputT <- reactive({
         #varx <- datPlot$perGini
         vary <- dat[, input$variableY]
         varx <- dat[, input$variableX]
@@ -188,7 +207,7 @@ shinyServer(function(input, output) {
     ## ****** ###
     # Plot
     
-    plotInputT <- reactive(function() {
+    plotInputT <- reactive({
         cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
         datPlotT <- datasetInputT()
         
@@ -214,18 +233,104 @@ shinyServer(function(input, output) {
         
     })
     
-    #   output$data <- renderPrint({ Tää oli datan plottaamiseen time-skatteriin että tiesi missä vika
-    #     datPlotT <- datasetInputT()
-    #     datPlotT
-    #     
-    #   })
     
-    output$timeplot <- reactivePlot(function() {
+    output$timeplot <- renderPlot({
         print(plotInputT())
     })
     
+    plotInputL <- reactive({
+        cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
+        datPlotT <- datasetInputT()
+        
+        if (input$log_scale == TRUE) scale <- scale_y_log10()
+        if (input$log_scale == FALSE) scale <- scale_y_continuous()
+        
+        ggplot(datPlotT, aes(x=year, y=varx, 
+                             group=cntry,color=cntry,
+                             label=year)) +
+            geom_point(alpha=.5) + 
+            geom_path(alpha=.5)  +
+            geom_text(size=5, hjust=0.0, vjust=-0.5,alpha=.7) +
+            geom_text(data=merge(datPlotT, aggregate(year ~ cntry, datPlotT, max),
+                                 by=c("year","cntry")),
+                      aes(x=year,y=varx,label=cntry),
+                      hjust=1,vjust=-1,size=5) + 
+            labs(x = "year",
+                 y = input$variableX) + 
+            theme_minimal() +
+            scale_colour_manual(values=cbPalette) +
+            theme(legend.title=element_blank()) +
+            theme(legend.text=element_text(size=16)) +
+            theme(legend.position="top") +
+            theme(axis.title = element_text(size=16)) +
+            theme(axis.text = element_text(size=16)) +
+            scale
+        
+    })
+    
+    output$lineplot <- renderPlot({
+        print(plotInputL())
+    })
+    
+    
+    plotInputR <- reactive({
+        cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
+        datPlotT <- datasetInputT()
+        relDat <-  merge(datPlotT, aggregate(year ~ cntry, datPlotT, min),
+                         by=c("year","cntry"))
+        relDat <- relDat[,c("year","cntry","varx")]
+        names(relDat)[3] <- "baseline"
+        dat_cntry1 <- datPlotT[datPlotT$cntry == input$Country1,]
+        dat_cntry2 <- datPlotT[datPlotT$cntry == input$Country2,]
+        dat_cntry3 <- datPlotT[datPlotT$cntry == input$Country3,]
+        dat_cntry4 <- datPlotT[datPlotT$cntry == input$Country4,]
+        dat_cntry5 <- datPlotT[datPlotT$cntry == input$Country5,]
+        
+        dat_cntry1_rl <- relDat[relDat$cntry == input$Country1,]
+        dat_cntry2_rl <- relDat[relDat$cntry == input$Country2,]
+        dat_cntry3_rl <- relDat[relDat$cntry == input$Country3,]
+        dat_cntry4_rl <- relDat[relDat$cntry == input$Country4,]
+        dat_cntry5_rl <- relDat[relDat$cntry == input$Country5,]
+        
+        dat_cntry1$rela <- dat_cntry1$varx / dat_cntry1_rl$baseline
+        dat_cntry2$rela <- dat_cntry2$varx / dat_cntry2_rl$baseline
+        dat_cntry3$rela <- dat_cntry3$varx / dat_cntry3_rl$baseline
+        dat_cntry4$rela <- dat_cntry4$varx / dat_cntry4_rl$baseline
+        dat_cntry5$rela <- dat_cntry5$varx / dat_cntry5_rl$baseline
+        
+        datPlotR <- rbind(dat_cntry1,dat_cntry2,
+                          dat_cntry3,dat_cntry4,
+                          dat_cntry5)
+        
+        ggplot(datPlotR, aes(x=year, y=rela, 
+                             group=cntry,color=cntry,
+                             label=year)) +
+            geom_point(alpha=.5) + 
+            geom_path(alpha=.5)  +
+            geom_text(size=5, hjust=0.0, vjust=-0.5,alpha=.7) +
+            geom_text(data=merge(datPlotR, aggregate(year ~ cntry, datPlotR, max),
+                                 by=c("year","cntry")),
+                      aes(x=year,y=rela,label=cntry),
+                      hjust=1,vjust=-1,size=5) + 
+            labs(x = "year",
+                 y = input$variableX) + 
+            theme_minimal() +
+            scale_colour_manual(values=cbPalette) +
+            theme(legend.title=element_blank()) +
+            theme(legend.text=element_text(size=16)) +
+            theme(legend.position="top") +
+            theme(axis.title = element_text(size=16)) +
+            theme(axis.text = element_text(size=16))
+        
+    })
+    
+    output$relaplot <- renderPlot({
+        print(plotInputR())
+    })
+    
+    
     #******************************#
-    #*** Downloads scatter
+    #*** Downloads plots
     
     output$downloadPlot <- downloadHandler(
         filename = function() { paste("varx_",input$variableX,"_vary_",input$variableY,Sys.time(),'.png', sep='') },
@@ -235,26 +340,6 @@ shinyServer(function(input, output) {
             dev.off()
         })
     
-    ## preparing data for download
-    
-    datasetInput2 <- reactive(function() {
-        datPlot <- datasetInput()
-        ## subset the continent
-        if (input$continent == "All") datPlot <- datPlot
-        if (input$continent != "All") datPlot <- datPlot[datPlot$contName == input$continent,]
-    })
-    
-    
-    output$downloadData <- downloadHandler(
-        filename = function() { paste("varx_",input$variableX,"_vary_",input$variableY,Sys.time(),'.csv', sep='') },
-        content = function(file) {
-            write.csv(datasetInput2(), file)
-        }
-    )
-    
-    #******************************#
-    #*** Downloads scatter
-    
     output$downloadPlotT <- downloadHandler(
         filename = function() { paste("varx_",input$variableX,"_vary_",input$variableY,Sys.time(),'.png', sep='') },
         content = function(file) {
@@ -262,6 +347,38 @@ shinyServer(function(input, output) {
             print(plotInputT())
             dev.off()
         })
+
+    output$downloadPlotL <- downloadHandler(
+        filename = function() { paste("varx_",input$variableX,Sys.time(),'.png', sep='') },
+        content = function(file) {
+            png(file, width=800, height=800,res=72)
+            print(plotInputL())
+            dev.off()
+        })
+    
+    output$downloadPlotR <- downloadHandler(
+        filename = function() { paste("varx_",input$variableX,Sys.time(),'.png', sep='') },
+        content = function(file) {
+            png(file, width=800, height=800,res=72)
+            print(plotInputR())
+            dev.off()
+        })
+    
+    ## preparing data for download
+    
+    datasetInput2 <- reactive({
+        datPlot <- datasetInput()
+        ## subset the continent
+        if (input$continent == "All") datPlot <- datPlot
+        if (input$continent != "All") datPlot <- datPlot[datPlot$contName == input$continent,]
+    })
+        
+    output$downloadData <- downloadHandler(
+        filename = function() { paste("varx_",input$variableX,"_vary_",input$variableY,Sys.time(),'.csv', sep='') },
+        content = function(file) {
+            write.csv(datasetInput2(), file)
+        }
+    )
     
     output$downloadDataT <- downloadHandler(
         filename = function() { paste("varx_",input$variableX,"_vary_",input$variableY,Sys.time(),'.csv', sep='') },

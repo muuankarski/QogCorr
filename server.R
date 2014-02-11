@@ -100,8 +100,9 @@ shinyServer(function(input, output) {
         contName <- as.character(dat$contName)
         year <- dat$year
         datPlotX <- data.frame(vary,varx,cntry,year,contName)
-        datPlot <- datPlotX[datPlotX$year == input$year,]
-    })
+        datPlot <- datPlotX[datPlotX$year == input$year,]    
+        
+        })
     
     ## ****** ###
     # Plot
@@ -110,7 +111,8 @@ shinyServer(function(input, output) {
         
         cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
         datPlot <- datasetInput()
-        # highlight a country in scatterplot
+        
+
         ## Subset russia data
         if (input$hl_country1 == "none") {
             highlight_dot <- scale_x_continuous()
@@ -238,6 +240,8 @@ shinyServer(function(input, output) {
         print(plotInputT())
     })
     
+    ## Lineplot
+    
     plotInputL <- reactive({
         cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
         datPlotT <- datasetInputT()
@@ -272,6 +276,7 @@ shinyServer(function(input, output) {
         print(plotInputL())
     })
     
+    ## relative line plot
     
     plotInputR <- reactive({
         cbPalette <- c("#000000", "#D55E00", "#56B4E9",  "#CC79A7", "#0072B2", "#F0E442")
@@ -328,6 +333,59 @@ shinyServer(function(input, output) {
         print(plotInputR())
     })
     
+    ## Map plot
+    
+    datasetInputMap <- reactive({
+        #varx <- datPlot$perGini
+        varx <- dat[, input$variableX]
+        cntry <- as.character(dat$cname)
+        contName <- as.character(dat$contName)
+        year <- dat$year
+        datPlot <- data.frame(varx,cntry,year,contName)
+        datPlot <- datPlot[!is.na(datPlot$varx),]
+        datPlot <- datPlot[!is.na(datPlot$cntry),]
+        datPlot <- merge(datPlot, aggregate(year ~ cntry, datPlot, max),
+                         by=c("year","cntry"))
+        
+    })
+    
+    plotInputMap <- reactive({
+        
+        datPlot <- datasetInputMap()
+        
+        # merge the data using rworldmap
+        library(rworldmap)
+        shape <- joinCountryData2Map(datPlot,joinCode = "NAME",nameJoinColumn = "cntry")
+        # fortify the SpatialPolygonDataFrame into data.frame
+        library(ggplot2)
+        shape$id <- rownames(shape@data)
+        map.points <- fortify(shape, region = "id")
+        map.df <- merge(map.points, shape, by = "id")
+        # order the data for smooth plotting
+        map.df <- map.df[order(map.df$order), ]
+        # and plot
+        cyear <- stats:::aggregate.formula(cbind(long, lat) ~ cntry+year, data=map.df, mean)
+        
+        library(ggplot2)
+        ggplot(map.df, aes(long,lat,group=group)) +
+            geom_polygon(aes(fill=varx)) +
+            geom_polygon(data = map.df, aes(long,lat), 
+                         fill=NA, 
+                         color = "white",
+                         size=0.1) + 
+             theme(legend.position="top") +
+            guides(fill = guide_legend(keywidth = 2, keyheight = 1)) +
+            labs(title=paste("Latest year",", indicator",input$variableX)) +
+            geom_text(data=cyear, aes(long, lat, label = year, group=cntry), 
+                      size=3, color="white")
+
+    })
+  
+    output$map <- renderPlot({
+        print(plotInputMap())
+    })
+    
+    
     
     #******************************#
     #*** Downloads plots
@@ -361,6 +419,14 @@ shinyServer(function(input, output) {
         content = function(file) {
             png(file, width=800, height=800,res=72)
             print(plotInputR())
+            dev.off()
+        })
+    
+    output$downloadPlotMap <- downloadHandler(
+        filename = function() { paste("varx_",input$variableX,Sys.time(),'.png', sep='') },
+        content = function(file) {
+            png(file, width=2500, height=2000,res=72)
+            print(plotInputMap())
             dev.off()
         })
     
